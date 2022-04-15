@@ -1,0 +1,49 @@
+2022/03/05 21:49:19.305769 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:123: pg-dorian_gray.txt
+2022/03/05 21:49:19.305962 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: start
+2022/03/05 21:59:35.422357 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:123: pg-dorian_gray.txt
+2022/03/05 21:59:35.422872 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: start
+2022/03/05 22:00:08.446640 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:00:08.446806 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:00:49.997411 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:00:49.998444 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:01:52.663742 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:01:52.663916 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:04:29.209136 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:04:29.209304 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:05:26.627756 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:05:26.627926 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:06:04.127281 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:06:04.127446 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:10:20.711669 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:10:20.711849 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:10:36.697955 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:10:36.698128 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:13:21.205621 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:13:21.205801 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:16:44.697321 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:16:44.697538 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:20:04.737798 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:20:04.738019 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:20:45.204614 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:20:45.204779 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:22:19.297478 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/05 22:22:19.297669 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/05 22:22:19.545023 /usr/lib/go-1.13/src/net/rpc/server.go:292: rpc.Register: method "Done" has 1 input parameters; needs exactly three
+2022/03/08 14:29:16.948802 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/08 14:29:16.949507 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/08 14:29:17.219014 /usr/lib/go-1.13/src/net/rpc/server.go:292: rpc.Register: method "Done" has 1 input parameters; needs exactly three
+2022/03/08 15:45:41.523736 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/08 15:45:41.524064 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/08 15:45:41.524341 /usr/lib/go-1.13/src/net/rpc/server.go:292: rpc.Register: method "Done" has 1 input parameters; needs exactly three
+2022/03/08 16:02:02.722297 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/08 16:02:02.722477 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/08 16:02:02.722685 /usr/lib/go-1.13/src/net/rpc/server.go:292: rpc.Register: method "Done" has 1 input parameters; needs exactly three
+2022/03/08 16:08:15.692404 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/08 16:08:15.692565 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/08 16:08:15.692742 /usr/lib/go-1.13/src/net/rpc/server.go:292: rpc.Register: method "Done" has 1 input parameters; needs exactly three
+2022/03/08 16:19:54.312784 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/08 16:19:54.312930 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/08 16:19:54.313107 /usr/lib/go-1.13/src/net/rpc/server.go:292: rpc.Register: method "Done" has 1 input parameters; needs exactly three
+2022/03/08 21:55:32.290047 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:124: pg-dorian_gray.txt
+2022/03/08 21:55:32.290295 /mnt/c/Users/郑沛越/Desktop/项目/go/6824/6.824/src/mr/coordinator.go:125: start
+2022/03/08 21:55:32.290552 /usr/lib/go-1.13/src/net/rpc/server.go:292: rpc.Register: method "Done" has 1 input parameters; needs exactly three

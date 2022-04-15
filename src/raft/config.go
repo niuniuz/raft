@@ -437,12 +437,14 @@ func (cfg *config) checkOneLeader() int {
 		leaders := make(map[int][]int)
 		for i := 0; i < cfg.n; i++ {
 			if cfg.connected[i] {
-				if term, leader := cfg.rafts[i].GetState(); leader {
+				term, leader := cfg.rafts[i].GetState()
+				log.Printf(" raft isLeader  in  checkOneLeader%v \n", leader)
+				if  leader {
 					leaders[term] = append(leaders[term], i)
+					fmt.Printf("leaders[term] len %d\n", len(leaders[term]))
 				}
 			}
 		}
-
 		lastTermWithLeader := -1
 		for term, leaders := range leaders {
 			if len(leaders) > 1 {

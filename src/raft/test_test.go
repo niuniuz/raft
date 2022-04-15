@@ -8,7 +8,10 @@ package raft
 // test with the original before submitting.
 //
 
-import "testing"
+import (
+	"log"
+	"testing"
+)
 import "fmt"
 import "time"
 import "math/rand"
@@ -20,6 +23,7 @@ import "sync"
 const RaftElectionTimeout = 1000 * time.Millisecond
 
 func TestInitialElection2A(t *testing.T) {
+	log.Println("TestInitialElection2A?")
 	servers := 3
 	cfg := make_config(t, servers, false, false)
 	defer cfg.cleanup()
@@ -28,7 +32,7 @@ func TestInitialElection2A(t *testing.T) {
 
 	// is a leader elected?
 	cfg.checkOneLeader()
-
+	log.Println("checkOneLeaderFinish")
 	// sleep a bit to avoid racing with followers learning of the
 	// election, then check that all peers agree on the term.
 	time.Sleep(50 * time.Millisecond)
@@ -51,6 +55,7 @@ func TestInitialElection2A(t *testing.T) {
 }
 
 func TestReElection2A(t *testing.T) {
+	log.Println("TestReElection2A")
 	servers := 3
 	cfg := make_config(t, servers, false, false)
 	defer cfg.cleanup()
@@ -61,28 +66,35 @@ func TestReElection2A(t *testing.T) {
 
 	// if the leader disconnects, a new one should be elected.
 	cfg.disconnect(leader1)
+	log.Printf("disconect leader %d\n", leader1)
 	cfg.checkOneLeader()
 
 	// if the old leader rejoins, that shouldn't
 	// disturb the new leader. and the old leader
 	// should switch to follower.
 	cfg.connect(leader1)
+	log.Printf("conect leader %d\n", leader1)
 	leader2 := cfg.checkOneLeader()
 
-	// if there's no quorum, no new leader should
+	// quorum, no new leader should
 	// be elected.
+
 	cfg.disconnect(leader2)
+	log.Printf("disconect leader %d\n", leader2)
 	cfg.disconnect((leader2 + 1) % servers)
+	log.Printf("disconect leader %d\n", (leader2 + 1) % servers)
 	time.Sleep(2 * RaftElectionTimeout)
 
 	// check that the one connected server
 	// does not think it is the leader.
 	cfg.checkNoLeader()
-
+	log.Printf("check no leader\n",)
 	// if a quorum arises, it should elect a leader.
+	log.Printf("conect leader %d\n", (leader2 + 1) % servers)
 	cfg.connect((leader2 + 1) % servers)
 	cfg.checkOneLeader()
 
+	log.Printf("test rejoin\n" )
 	// re-join of last node shouldn't prevent leader from existing.
 	cfg.connect(leader2)
 	cfg.checkOneLeader()
@@ -94,7 +106,7 @@ func TestManyElections2A(t *testing.T) {
 	servers := 7
 	cfg := make_config(t, servers, false, false)
 	defer cfg.cleanup()
-
+	log.Println("TestManyElections2A")
 	cfg.begin("Test (2A): multiple elections")
 
 	cfg.checkOneLeader()
