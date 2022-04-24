@@ -170,7 +170,7 @@ func (cfg *config) applier(i int, applyCh chan ApplyMsg) {
 				err_msg = fmt.Sprintf("server %v apply out of order %v", i, m.CommandIndex)
 			}
 			if err_msg != "" {
-				log.Fatalf("apply error: %v", err_msg)
+				log.Fatalf("apply error22: %v", err_msg)
 				cfg.applyErr[i] = err_msg
 				// keep reading after error so that Raft doesn't block
 				// holding locks...
@@ -259,7 +259,7 @@ func (cfg *config) applierSnap(i int, applyCh chan ApplyMsg) {
 			// Ignore other types of ApplyMsg.
 		}
 		if err_msg != "" {
-			log.Fatalf("apply error: %v", err_msg)
+			log.Fatalf("apply error11: %v", err_msg)
 			cfg.applyErr[i] = err_msg
 			// keep reading after error so that Raft doesn't block
 			// holding locks...
@@ -358,8 +358,7 @@ func (cfg *config) cleanup() {
 
 // attach server i to the net.
 func (cfg *config) connect(i int) {
-	// fmt.Printf("connect(%d)\n", i)
-
+	log.Printf("raft %d reconnect\n", i)
 	cfg.connected[i] = true
 
 	// outgoing ClientEnds
@@ -381,8 +380,7 @@ func (cfg *config) connect(i int) {
 
 // detach server i from the net.
 func (cfg *config) disconnect(i int) {
-	// fmt.Printf("disconnect(%d)\n", i)
-
+	log.Printf("raft %d disconnect\n", i)
 	cfg.connected[i] = false
 
 	// outgoing ClientEnds
@@ -498,21 +496,30 @@ func (cfg *config) checkNoLeader() {
 func (cfg *config) nCommitted(index int) (int, interface{}) {
 	count := 0
 	var cmd interface{} = nil
+
 	for i := 0; i < len(cfg.rafts); i++ {
+		//log.Printf("cfg.rafts %v",cfg.rafts)
 		if cfg.applyErr[i] != "" {
+			fmt.Printf("error %v", cfg.applyErr[i])
 			cfg.t.Fatal(cfg.applyErr[i])
 		}
 
 		cfg.mu.Lock()
 		cmd1, ok := cfg.logs[i][index]
+		//log.Println(1111111)
+		//log.Printf("cfg.logs %v   %v \n",cfg.logs, cfg.logs[i])
+		//log.Printf("cfg.logs %v\n index %d", cfg.logs[i][index], index)
+		//log.Println(2222)
+		//
+		//log.Printf("cfg ok123131231%v\n",ok)
 		cfg.mu.Unlock()
-
 		if ok {
 			if count > 0 && cmd != cmd1 {
 				cfg.t.Fatalf("committed values do not match: index %v, %v, %v",
 					index, cmd, cmd1)
 			}
 			count += 1
+			log.Printf("cfg count %v",count)
 			cmd = cmd1
 		}
 	}
@@ -585,16 +592,21 @@ func (cfg *config) one(cmd interface{}, expectedServers int, retry bool) int {
 			}
 		}
 
+		//log.Printf("test2b index %v", index)
 		if index != -1 {
 			// somebody claimed to be the leader and to have
 			// submitted our command; wait a while for agreement.
 			t1 := time.Now()
 			for time.Since(t1).Seconds() < 2 {
+				//log.Printf("test2b nd ")
 				nd, cmd1 := cfg.nCommitted(index)
+				//log.Printf("test2b nd %v ", nd)
 				if nd > 0 && nd >= expectedServers {
 					// committed
+					//log.Printf("test2b 11 cmd %v cmd1  %v", cmd, cmd1)
 					if cmd1 == cmd {
 						// and it was the command we submitted.
+						//log.Printf("test2b cmd %v", cmd)
 						return index
 					}
 				}
@@ -607,6 +619,7 @@ func (cfg *config) one(cmd interface{}, expectedServers int, retry bool) int {
 			time.Sleep(50 * time.Millisecond)
 		}
 	}
+
 	if cfg.checkFinished() == false {
 		cfg.t.Fatalf("one(%v) failed to reach agreement", cmd)
 	}

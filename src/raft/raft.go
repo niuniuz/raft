@@ -18,7 +18,6 @@ package raft
 //
 
 import (
-	"fmt"
 	"log"
 	"math/rand"
 	"os"
@@ -55,12 +54,11 @@ const baseElectionTimeout = 80 // ms, this this as network latency
 // random Disturbance for election timeout.
 const minRandDis = 300
 const maxRandDis = 600
-const heartBeatInterval = 100
+const heartBeatInterval = 150
 
 type ApplyMsg struct {
 	CommandValid bool
 	Command      interface{}
-	//
 	CommandIndex int
 
 	// For 2D:
@@ -69,10 +67,7 @@ type ApplyMsg struct {
 	SnapshotTerm  int
 	SnapshotIndex int
 }
-type Log struct {
-	Term int
-	command string
-}
+
 //
 // A Go object implementing a single Raft peer.
 //
@@ -92,16 +87,14 @@ type Raft struct {
 	LastApplied int
 	State       State
 	//leader的不稳定状态
+	//用于日志同步
 	NextIndex  []int
 	MatchIndex []int
-
 	electionIntervalTime int
 
-	electionStopChan      chan bool
-	isStartElectionChan chan bool
-	electionTimeChan      chan string
-	voteReplyChan chan *RequestVoteReply
-	AppendEntriesChan chan AppendEntriesReply
+	applyCh   chan ApplyMsg
+	applyCond *sync.Cond
+
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
@@ -240,40 +233,38 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 //
 
 
-func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
-
-	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
-	if !ok {
-		rf.mu.Lock()
-		log.Printf("raft  %d  state %d startSendAppendEntries to %d\n  failed", rf.me, rf.State, server )
-		rf.mu.Unlock()
-	}
-	return ok
-}
 
 //
-// the service using Raft (e.g. a k/v server) wants to start
-// agreement on the next command to be appended to Raft's log. if this
-// server isn't the leader, returns false. otherwise start the
-// agreement and return immediately. there is no guarantee that this
-// command will ever be committed to the Raft log, since the leader
-// may fail or lose an election. even if the Raft instance has been killed,
-// this function should return gracefully.
+//the service using Raft (e.g. a k/v server) wants to start
+//agreement on the next command to be appended to Raft's log. if this
+//server isn't the leader, returns false. otherwise start the
+//agreement and return immediately. there is no guarantee that this
+//command will ever be committed to the Raft log, since the leader
+//may fail or lose an election. even if the Raft instance has been killed,
+//this function should return gracefully.
 //
 // the first return value is the index that the command will appear at
 // if it's ever committed. the second return value is the current
 // term. the third return value is true if this server believes it is
 // the leader.
 //
+
+//收到日志
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	index := -1
-	term := -1
-	isLeader := true
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
 
-	// Your code here (2B).
-
-
-	return index, term, isLeader
+	if  rf.State != leader {
+		return -1, rf.CurrentTerm, false
+	}
+	logs := &Log{
+		Command:command,
+		Index: len(rf.log),
+		Term: rf.CurrentTerm,
+	}
+	rf.addLog(logs)
+	log.Printf("leader rf %d append %v getLastLog().Index %v", rf.me, logs, rf.getLastLog().Index + 1 )
+	return rf.getLastLog().Index , rf.CurrentTerm, true
 }
 
 //
@@ -331,59 +322,6 @@ func (rf *Raft) ticker() {
 }
 
 
-func (rf *Raft) startSendAppendEntries() {
-		rf.mu.Lock()
-		args := &AppendEntriesArgs{}
-		args.Term = rf.CurrentTerm
-		args.LeaderId = rf.me
-		rf.resetElectionIntervalTime()
-		rf.mu.Unlock()
-
-		reply := &AppendEntriesReply{}
-
-		for serverId := 0; serverId < len(rf.peers); serverId++ {
-			if serverId != rf.me {
-				log.Printf("raft  %d  state %d startSendAppendEntries to %d\n ", rf.me,rf.State, serverId )
-				ok := rf.sendAppendEntries(serverId, args, reply)
-				if !ok {
-					continue
-				}
-				rf.mu.Lock()
-				if rf.State != leader {
-					//遇到的神奇bug
-					//如果不return的话，可能一直处于发送AppendEntries中，无法改变状态
-					rf.mu.Unlock()
-					return
-				}
-				if reply.Term > rf.CurrentTerm{
-					rf.setNewTerm(reply.Term)
-					rf.mu.Unlock()
-					break
-				}else{
-					rf.mu.Unlock()
-				}
-			}
-		}
-	log.Printf("raft  %d startSendAppendEntries over\n", rf.me )
-}
-
-
-
-func (rf *Raft) eletionTimer(){
-	log.Printf("raft %d initEletionTimer\n", rf.me)
-	sleepTime := rand.Intn(maxRandDis - minRandDis) + minRandDis
-	time.Sleep(time.Duration(sleepTime) * time.Millisecond)
-	log.Printf("raft %d electionTimeOut\n", rf.me)
-	rf.mu.Lock()
-	if rf.State == candidate {
-		log.Printf("raft %d stop Election\n", rf.me)
-		rf.electionStopChan <- true
-		//是否需要关闭
-
-	}
-	rf.mu.Unlock()
-}
-
 func (rf *Raft) resetElectionIntervalTime(){
 	//使用前需要加锁
 	rf.electionIntervalTime = rand.Intn(maxRandDis - minRandDis) + minRandDis
@@ -405,16 +343,60 @@ func (rf *Raft) resetElectionIntervalTime(){
 //初始化currentTerm,log[], commitIndex,lastApplied
 
 func (rf *Raft) setNewTerm(term int) {
-	if term > rf.CurrentTerm || rf.CurrentTerm == 0 {
+	if term >= rf.CurrentTerm || rf.CurrentTerm == 0 {
 		rf.State = follow
 		rf.CurrentTerm = term
 		rf.VotedFor = -1
 		rf.resetElectionIntervalTime()
 		log.Printf("[%d]: set term %v\n", rf.me, rf.CurrentTerm)
-
 		//rf.persist()
 	}
 }
+
+func setLog()  {
+	file := "./" +"message"+ ".txt"
+
+	logFile, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0766)
+	//defer logFile.Close()
+
+	if err != nil {
+		panic(err)
+	}
+	log.SetOutput(logFile)
+
+}
+
+
+func (rf *Raft) apply() {
+	rf.applyCond.Broadcast()
+	DPrintf("[%v]: rf.applyCond.Broadcast()", rf.me)
+}
+
+func (rf *Raft) applier() {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	for !rf.killed() {
+		// all server rule C1
+		if rf.CommitIndex > rf.LastApplied &&
+			rf.getLastLog().Index > rf.LastApplied{
+			rf.LastApplied++
+			applyMsg := ApplyMsg{
+				CommandValid:  true,
+				Command:       rf.log[rf.LastApplied].Command,
+				CommandIndex:  rf.LastApplied,
+			}
+			rf.mu.Unlock()
+			log.Printf("[%v]: apply Msg %v\n", rf.me, applyMsg)
+			rf.applyCh <- applyMsg
+			rf.mu.Lock()
+		} else {
+			rf.applyCond.Wait()
+			log.Printf("[%v]: rf.applyCond.Wait()", rf.me)
+		}
+	}
+}
+
 
 
 func Make(peers []*labrpc.ClientEnd, me int,
@@ -426,40 +408,31 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	// Your initialization code here (2A, 2B, 2C).
 	//rf.CurrentTerm = 0
-	rf.log =make([]Log, 1)
+	rf.log = make([]Log, 0)
+	rf.log = append(rf.log, Log{0, 0, -1})
 	rf.VotedFor = -1
 
 	rf.CommitIndex = 0
 	rf.LastApplied = 0
+
 	rf.State = follow
-
-
 	rf.electionIntervalTime = rand.Intn(maxRandDis - minRandDis) + minRandDis
 
+	rf.NextIndex = make([]int, len(rf.peers))
+	rf.MatchIndex = make([]int, len(rf.peers))
 
-
-	rf.electionStopChan = make(chan bool, 1)
-	rf.AppendEntriesChan = make(chan  AppendEntriesReply, len(peers))
-	rf.voteReplyChan = make(chan *RequestVoteReply, len(rf.peers))//重置通道防止上次选举的消息写入
+	rf.applyCh = applyCh
+	rf.applyCond = sync.NewCond(&rf.mu)
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
-
+	setLog()
 	// start ticker goroutine to start elections
 
-	file := "./" +"message"+ ".txt"
-
-	logFile, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0766)
-	//defer logFile.Close()
-
-	if err != nil {
-		panic(err)
-	}
-	log.SetOutput(logFile)
 	log.Printf("raft %d finishInitial\n", rf.me)
-	fmt.Println(rf.electionIntervalTime)
 
 	go rf.ticker()
+	go rf.applier()
 	return rf
 }
 

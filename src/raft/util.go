@@ -14,6 +14,13 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 
 func min(x int, y int)  int{
 	if x > y {
+		return y
+	}else {
+		return x
+	}
+}
+func max(x int, y int)  int{
+	if x > y {
 		return x
 	}else {
 		return y

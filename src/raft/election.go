@@ -32,7 +32,13 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs,
 			//注意这个地方的判断条件
 			becomeLeader.Do(func() {
 				log.Printf("raft  %d electionSuccess \n", rf.me)
+				//选举为leader后状态的转变
 				rf.State = leader
+				for i := 0; i < len(rf.peers); i++ {
+					rf.NextIndex[i] = len(rf.log)
+					rf.MatchIndex[i] = 0
+				}
+
 				log.Printf("raft  %d state change to  %d\n", rf.me, rf.State)
 				log.Printf("raft  %d election prepareToEnd\n", rf.me)
 				//close(rf.electionStopChan)
@@ -50,7 +56,8 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs,
 }
 
 func (rf *Raft) startElection() {
-	var becomeLeader  sync.Once
+	if rf.killed() == false {
+		var becomeLeader  sync.Once
 		rf.mu.Lock()
 		log.Printf("raft  %d startElection\n", rf.me )
 		rf.State = candidate
@@ -68,11 +75,10 @@ func (rf *Raft) startElection() {
 
 		voteCount := 1
 		for  i := 0; i < len(rf.peers) ;i++{
-			if i != rf.me {
+			if i != rf.me && rf.killed() == false{
 				log.Printf("raft  %d sendRequestVote to %d\n",rf.me, i )
 				go rf.sendRequestVote(i, requestVoteArgs, &voteCount, &becomeLeader)
 			}
 		}
-
-
+	}
 }
