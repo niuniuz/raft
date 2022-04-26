@@ -715,7 +715,7 @@ func TestPersist12C(t *testing.T) {
 	servers := 3
 	cfg := make_config(t, servers, false, false)
 	defer cfg.cleanup()
-
+	log.Println("Test (2C): basic persistence")
 	cfg.begin("Test (2C): basic persistence")
 
 	cfg.one(11, servers, true)
@@ -730,7 +730,6 @@ func TestPersist12C(t *testing.T) {
 	}
 
 	cfg.one(12, servers, true)
-
 	leader1 := cfg.checkOneLeader()
 	cfg.disconnect(leader1)
 	cfg.start1(leader1, cfg.applier)
@@ -762,6 +761,7 @@ func TestPersist22C(t *testing.T) {
 	cfg := make_config(t, servers, false, false)
 	defer cfg.cleanup()
 
+	log.Println("Test (2C): more persistence")
 	cfg.begin("Test (2C): more persistence")
 
 	index := 1

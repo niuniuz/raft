@@ -18,9 +18,13 @@ package raft
 //
 
 import (
+	"6.824/labgob"
+	"bytes"
+	"fmt"
 	"log"
 	"math/rand"
 	"os"
+	"strings"
 
 	//	"bytes"
 	"sync"
@@ -78,7 +82,7 @@ type Raft struct {
 	me        int                 // this peer's index into peers[]
 	dead      int32               // set by Kill() kill
 
-	//稳定状态
+	//需要持久化的状态
 	CurrentTerm int //当前任期
 	VotedFor    int //投票给那个candidate，-1表示未投票
 	log         []Log //日志
@@ -117,6 +121,7 @@ func (rf *Raft) GetState() (int, bool) {
 	}else {
 		isleader = false
 	}
+	rf.persist()
 	log.Printf("raft %d isLeader= %v term = %d\n",rf.me, isleader, term)
 	// Your code here (2A).
 
@@ -129,14 +134,16 @@ func (rf *Raft) GetState() (int, bool) {
 // see paper's Figure 2 for a description of what should be persistent.
 // 将raft的状态持久化储存
 func (rf *Raft) persist() {
+	//使用前加锁
 	// Your code here (2C).
 	// Example:
-	// w := new(bytes.Buffer)
-	// e := labgob.NewEncoder(w)
-	// e.Encode(rf.xxx)
-	// e.Encode(rf.yyy)
-	// data := w.Bytes()
-	// rf.persister.SaveRaftState(data)
+	w := new(bytes.Buffer)
+	e := labgob.NewEncoder(w)
+	e.Encode(rf.CurrentTerm)
+	e.Encode(rf.VotedFor)
+	e.Encode(rf.log)
+	data := w.Bytes()
+	rf.persister.SaveRaftState(data)
 }
 
 
@@ -144,22 +151,26 @@ func (rf *Raft) persist() {
 // restore previously persisted state.
 // 恢复raft的状态
 func (rf *Raft) readPersist(data []byte) {
+	//使用前加锁
+	DPrintf("[%v]: readPersist", rf.me)
 	if data == nil || len(data) < 1 { // bootstrap without any state?
 		return
 	}
 	// Your code here (2C).
 	// Example:
-	// r := bytes.NewBuffer(data)
-	// d := labgob.NewDecoder(r)
-	// var xxx
-	// var yyy
-	// if d.Decode(&xxx) != nil ||
-	//    d.Decode(&yyy) != nil {
-	//   error...
-	// } else {
-	//   rf.xxx = xxx
-	//   rf.yyy = yyy
-	// }
+	r := bytes.NewBuffer(data)
+	d := labgob.NewDecoder(r)
+	var currentTerm int
+	var votedFor int
+	var logs []Log
+
+	if d.Decode(&currentTerm) != nil || d.Decode(&votedFor) != nil || d.Decode(&logs) != nil {
+		log.Fatal("failed to read persist\n")
+	} else {
+		rf.CurrentTerm = currentTerm
+		rf.VotedFor = votedFor
+		rf.log = logs
+	}
 }
 
 
@@ -263,6 +274,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		Term: rf.CurrentTerm,
 	}
 	rf.addLog(logs)
+	rf.persist()
 	log.Printf("leader rf %d append %v getLastLog().Index %v", rf.me, logs, rf.getLastLog().Index + 1 )
 	return rf.getLastLog().Index , rf.CurrentTerm, true
 }
@@ -349,7 +361,7 @@ func (rf *Raft) setNewTerm(term int) {
 		rf.VotedFor = -1
 		rf.resetElectionIntervalTime()
 		log.Printf("[%d]: set term %v\n", rf.me, rf.CurrentTerm)
-		//rf.persist()
+		rf.persist()
 	}
 }
 
@@ -387,7 +399,7 @@ func (rf *Raft) applier() {
 				CommandIndex:  rf.LastApplied,
 			}
 			rf.mu.Unlock()
-			log.Printf("[%v]: apply Msg %v\n", rf.me, applyMsg)
+			log.Printf("[%v]: apply Msg %v\n COMMIT %v ", rf.me, applyMsg, rf.commits())
 			rf.applyCh <- applyMsg
 			rf.mu.Lock()
 		} else {
@@ -430,9 +442,16 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// start ticker goroutine to start elections
 
 	log.Printf("raft %d finishInitial\n", rf.me)
-
 	go rf.ticker()
 	go rf.applier()
 	return rf
 }
 
+
+func (rf *Raft) commits() string {
+	nums := []string{}
+	for i := 0; i <= rf.LastApplied; i++ {
+		nums = append(nums, fmt.Sprintf("%4d", rf.getLogAtIndex(i).Command))
+	}
+	return fmt.Sprint(strings.Join(nums, "|"))
+}

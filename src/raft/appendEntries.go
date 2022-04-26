@@ -76,11 +76,7 @@ func (rf * Raft) leaderSendAppendEntries(args *AppendEntriesArgs, serverId int) 
 
 		rf.mu.Lock()
 		if args.Term ==  rf.CurrentTerm {
-			if !reply.Success {
-				if rf.NextIndex[serverId] > 1 {
-					rf.NextIndex[serverId]--
-				}
-			} else if reply.Success {
+			if reply.Success {
 				if !(len(args.Entries) == 0) {
 					//不是心跳
 					match :=  args.PrevLogIndex + len(args.Entries)
@@ -89,11 +85,27 @@ func (rf * Raft) leaderSendAppendEntries(args *AppendEntriesArgs, serverId int) 
 					rf.NextIndex[serverId] = max(rf.NextIndex[serverId], next)
 					rf.MatchIndex[serverId] = max(rf.MatchIndex[serverId], match)
 				}
+			}else if reply.Conflict{
+				if reply.Conflict {
+					if reply.XTerm == -1 {
+						rf.NextIndex[serverId] = reply.XLen
+					} else {
+						lastLogInXTerm := rf.findLastLogInTerm(reply.XTerm)
+						if lastLogInXTerm > 0 {
+							rf.NextIndex[serverId] = lastLogInXTerm
+						} else {
+							rf.NextIndex[serverId] = reply.XIndex
+						}
+					}
+					if rf.NextIndex[serverId] > 1 {
+						rf.NextIndex[serverId]--
+					}
+				}
+			}else if rf.NextIndex[serverId] > 1 {
+				rf.NextIndex[serverId]--
 			}
-		}else{
-			return
+			rf.commit()
 		}
-		rf.commit()
 		rf.mu.Unlock()
 }
 func (rf * Raft)commit()  {

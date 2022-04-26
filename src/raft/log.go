@@ -38,3 +38,14 @@ func (rf *Raft) getLastLog() Log{
 func (rf *Raft) getLogAtIndex(index int) Log{
 	return rf.log[index]
 }
+func (rf *Raft) findLastLogInTerm(x int) int {
+	for i := rf.getLastLog().Index; i > 0; i-- {
+		term := rf.getLogAtIndex(i).Term
+		if term == x {
+			return i
+		} else if term < x {
+			break
+		}
+	}
+	return -1
+}

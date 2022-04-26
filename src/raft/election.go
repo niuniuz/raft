@@ -34,6 +34,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs,
 				log.Printf("raft  %d electionSuccess \n", rf.me)
 				//选举为leader后状态的转变
 				rf.State = leader
+				rf.persist()
 				for i := 0; i < len(rf.peers); i++ {
 					rf.NextIndex[i] = len(rf.log)
 					rf.MatchIndex[i] = 0
@@ -63,13 +64,14 @@ func (rf *Raft) startElection() {
 		rf.State = candidate
 		rf.VotedFor = rf.me
 		rf.CurrentTerm += 1
+		rf.persist()
 		//rf.VotedFor = rf.me
 		rf.resetElectionIntervalTime()
 		requestVoteArgs := &RequestVoteArgs{
 			Term: rf.CurrentTerm,
 			CandidateId: rf.me,
-			LastLogIndex: len(rf.log),
-			LastLogTerm: rf.log[len(rf.log) - 1].Term,
+			LastLogIndex: rf.getLastLog().Index,
+			LastLogTerm: rf.getLastLog().Term,
 		}
 		rf.mu.Unlock()
 

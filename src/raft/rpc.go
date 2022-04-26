@@ -12,9 +12,14 @@ type AppendEntriesArgs struct {
 	Entries [] Log
 	LeaderCommit int
 }
+
 type AppendEntriesReply struct {
 	Term int
 	Success bool
+	Conflict bool
+	XTerm    int
+	XIndex   int
+	XLen     int
 }
 
 type RequestVoteArgs struct {
@@ -36,23 +41,23 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	defer rf.mu.Unlock()
 
 	cadidateTerm := args.Term
+
+	if  cadidateTerm > rf.CurrentTerm {
+		rf.setNewTerm(cadidateTerm)
+	}
+
 	if cadidateTerm < rf.CurrentTerm{
 		reply.Term = rf.CurrentTerm
 		reply.VoteGranted = false
 		return
 	}
 
-	if  cadidateTerm > rf.CurrentTerm {
-		rf.setNewTerm(cadidateTerm)
-	}
+	isArgsLogNewThanSelfLog := rf.getLastLog().Term < args.LastLogTerm ||
+	(rf.getLastLog().Index <= args.LastLogIndex && rf.getLastLog().Term == args.LastLogTerm)
 
-
-	if (rf.VotedFor == -1  || rf.VotedFor == args.CandidateId) &&
-		((rf.getLastLog().Index <= args.LastLogIndex &&
-		rf.getLastLog().Term == args.LastLogTerm) ||
-		rf.getLastLog().Term < args.LastLogTerm){
-
+	if (rf.VotedFor == -1  || rf.VotedFor == args.CandidateId) && isArgsLogNewThanSelfLog{
 		rf.VotedFor = args.CandidateId
+		rf.persist()
 		log.Printf("raf %d VotedFor %d \n",rf.me, rf.VotedFor )
 		reply.VoteGranted = true
 		rf.resetElectionIntervalTime()
@@ -74,7 +79,7 @@ func (rf * Raft) AppendEntries(args * AppendEntriesArgs, reply * AppendEntriesRe
 	log.Printf("raft %d  term %d receive AppendEntries from raft %d term %d\n",
 		rf.me, rf.CurrentTerm, args.LeaderId,  args.Term)
 
-	if args.Term > rf.CurrentTerm  || rf.State == candidate{
+	if args.Term > rf.CurrentTerm  {
 		//可能有bug
 		rf.setNewTerm(args.Term)
 		return
@@ -85,21 +90,37 @@ func (rf * Raft) AppendEntries(args * AppendEntriesArgs, reply * AppendEntriesRe
 		log.Println("args.Term < rf.CurrentTerm")
 		return
 	}
+	if rf.State == candidate{
+		rf.setNewTerm(args.Term)
+	}
 
 	rf.resetElectionIntervalTime()
 	if rf.getLastLog().Index < args.PrevLogIndex {
 		log.Println("rf.getLogAtIndex(args.PrevLogIndex).Index != args.PrevLogIndex")
+		reply.Conflict = true
+		reply.XLen = len(rf.log)
+		reply.XIndex = -1
+		reply.XTerm = -1
 		return
 	}
 
 	if args.Term == rf.CurrentTerm {
 		if rf.getLogAtIndex(args.PrevLogIndex).Term != args.PrevLogTerm {
+			reply.Conflict = true
+			xTerm := rf.getLogAtIndex(args.PrevLogIndex).Term
+			for xIndex := args.PrevLogIndex; xIndex > 0; xIndex-- {
+				if rf.getLogAtIndex(xIndex-1).Term != xTerm {
+					reply.XIndex = xIndex
+					break
+				}
+			}
+			reply.XTerm = xTerm
+			reply.XLen = len(rf.log)
 			log.Println("rf.getLogAtIndex(args.PrevLogIndex).Term != args.Term")
 			return
 		}
 		//更新日志
 		rf.followLogUpdate(args)
-		reply.Success = true
 	}
 
 	if args.LeaderCommit > rf.CommitIndex {
@@ -111,6 +132,7 @@ func (rf * Raft) AppendEntries(args * AppendEntriesArgs, reply * AppendEntriesRe
 
 
 	log.Printf("raft  %d  entries %v commitIndex %d\n", rf.me, rf.log, rf.CommitIndex)
+	reply.Success = true
 
 }
 
@@ -127,13 +149,15 @@ func (rf *Raft)followLogUpdate(args * AppendEntriesArgs)  {
 
 	//判断是否产生冲突,产生冲突则删除follow中从冲突位置开始的日志
 	for i,j := args.PrevLogIndex + 1, 0;  j < len(args.Entries); i, j = i + 1, j + 1{
-		if i < len(rf.log) && rf.log[i].Term != args.Entries[j].Term {
+		if i <= rf.getLastLog().Index && rf.getLogAtIndex(i).Term != args.Entries[j].Term {
 			rf.log = append(rf.log[:i])
 			rf.log = append(rf.log, args.Entries[j:]...)
+			rf.persist()
 			break
-		}else if i >= len(rf.log) {
+		}else if i > rf.getLastLog().Index {
 			//log.Printf("raft  %d  args.Entries %v \n", rf.me, args.Entries[j:])
 			rf.log = append(rf.log, args.Entries[j:]...)
+			rf.persist()
 			break
 		}
 	}
