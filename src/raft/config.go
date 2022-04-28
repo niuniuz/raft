@@ -107,6 +107,7 @@ func make_config(t *testing.T, n int, unreliable bool, snapshot bool) *config {
 
 // shut down a Raft server but save its persistent state.
 func (cfg *config) crash1(i int) {
+	log.Printf("raft %d crash", i)
 	cfg.disconnect(i)
 	cfg.net.DeleteServer(i) // disable client connections to the server.
 
@@ -519,7 +520,6 @@ func (cfg *config) nCommitted(index int) (int, interface{}) {
 					index, cmd, cmd1)
 			}
 			count += 1
-			log.Printf("cfg count %v",count)
 			cmd = cmd1
 		}
 	}

@@ -36,6 +36,22 @@ type RequestVoteReply struct {
 	VoteGranted bool
 }
 
+type InstallSnapshotArgs struct {
+	// Your data here (2A, 2B).
+	Term int
+	LeaderId int
+	LastIncludedIndex int
+	LastIncludedTerm int
+	Offset int
+	Data [] byte
+	Done bool
+}
+
+type InstallSnapshotArgsReply struct {
+	Term int
+}
+
+
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -56,10 +72,10 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	(rf.getLastLog().Index <= args.LastLogIndex && rf.getLastLog().Term == args.LastLogTerm)
 
 	if (rf.VotedFor == -1  || rf.VotedFor == args.CandidateId) && isArgsLogNewThanSelfLog{
+		reply.VoteGranted = true
 		rf.VotedFor = args.CandidateId
 		rf.persist()
 		log.Printf("raf %d VotedFor %d \n",rf.me, rf.VotedFor )
-		reply.VoteGranted = true
 		rf.resetElectionIntervalTime()
 	} else  {
 		reply.VoteGranted = false
@@ -78,11 +94,13 @@ func (rf * Raft) AppendEntries(args * AppendEntriesArgs, reply * AppendEntriesRe
 
 	log.Printf("raft %d  term %d receive AppendEntries from raft %d term %d\n",
 		rf.me, rf.CurrentTerm, args.LeaderId,  args.Term)
+	log.Printf("raft %d  term %d lastIncludedIndex %d logs %d lastConcludeIndex %d args.PrevLogIndex %d\n",
+		rf.me, rf.CurrentTerm, rf.lastIncludedIndex, rf.log,  rf.lastIncludedIndex, args.PrevLogIndex)
 
 	if args.Term > rf.CurrentTerm  {
 		//可能有bug
 		rf.setNewTerm(args.Term)
-		return
+		//return
 		// 是否需要更新日志操作
 	}
 
@@ -94,9 +112,10 @@ func (rf * Raft) AppendEntries(args * AppendEntriesArgs, reply * AppendEntriesRe
 		rf.setNewTerm(args.Term)
 	}
 
+
 	rf.resetElectionIntervalTime()
 	if rf.getLastLog().Index < args.PrevLogIndex {
-		log.Println("rf.getLogAtIndex(args.PrevLogIndex).Index != args.PrevLogIndex")
+		log.Println("rf.getLogAtIndex(args.PrevLogIndex).Index != args.PrevLogIndex ")
 		reply.Conflict = true
 		reply.XLen = len(rf.log)
 		reply.XIndex = -1
@@ -104,11 +123,12 @@ func (rf * Raft) AppendEntries(args * AppendEntriesArgs, reply * AppendEntriesRe
 		return
 	}
 
-	if args.Term == rf.CurrentTerm {
+
+	if args.Term == rf.CurrentTerm  {
 		if rf.getLogAtIndex(args.PrevLogIndex).Term != args.PrevLogTerm {
 			reply.Conflict = true
 			xTerm := rf.getLogAtIndex(args.PrevLogIndex).Term
-			for xIndex := args.PrevLogIndex; xIndex > 0; xIndex-- {
+			for xIndex := args.PrevLogIndex; xIndex > rf.lastIncludedIndex; xIndex-- {
 				if rf.getLogAtIndex(xIndex-1).Term != xTerm {
 					reply.XIndex = xIndex
 					break
@@ -117,6 +137,7 @@ func (rf * Raft) AppendEntries(args * AppendEntriesArgs, reply * AppendEntriesRe
 			reply.XTerm = xTerm
 			reply.XLen = len(rf.log)
 			log.Println("rf.getLogAtIndex(args.PrevLogIndex).Term != args.Term")
+			log.Printf("raft %d rf.getLogAtIndex(args.PrevLogIndex).Term %d args.Term %d",rf.me, rf.getLogAtIndex(args.PrevLogIndex).Term , args.PrevLogTerm)
 			return
 		}
 		//更新日志
@@ -136,29 +157,54 @@ func (rf * Raft) AppendEntries(args * AppendEntriesArgs, reply * AppendEntriesRe
 
 }
 
-func (rf *Raft)followLogUpdate(args * AppendEntriesArgs)  {
-	log.Printf("raft %d update",  rf.me )
-	//未携带entries，判定为心跳
-	if len(args.Entries) == 0 {
+
+
+func (rf *Raft)InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotArgsReply){
+	//InstallSnapshot rule 1
+	rf.mu.Lock()
+	log.Printf("raft  %d  state %d receiveInstallSnapshots from %d \n ", rf.me,rf.State,  args.LeaderId )
+	reply.Term = rf.CurrentTerm
+	if args.Term < rf.CurrentTerm{
+		rf.mu.Unlock()
+		log.Println("args.Term < rf.CurrentTerm")
 		return
 	}
-	//删除follow中未提交的日志, 不应该像下面这样截断，可能收到过期的appendEntires导致已提交的条目被删除
-	//if len(rf.log) > args.PrevLogIndex {
-	//	rf.log = append(rf.log[:args.PrevLogIndex - 1])
-	//}
-
-	//判断是否产生冲突,产生冲突则删除follow中从冲突位置开始的日志
-	for i,j := args.PrevLogIndex + 1, 0;  j < len(args.Entries); i, j = i + 1, j + 1{
-		if i <= rf.getLastLog().Index && rf.getLogAtIndex(i).Term != args.Entries[j].Term {
-			rf.log = append(rf.log[:i])
-			rf.log = append(rf.log, args.Entries[j:]...)
-			rf.persist()
-			break
-		}else if i > rf.getLastLog().Index {
-			//log.Printf("raft  %d  args.Entries %v \n", rf.me, args.Entries[j:])
-			rf.log = append(rf.log, args.Entries[j:]...)
-			rf.persist()
-			break
-		}
+	if args.Term > rf.CurrentTerm {
+		rf.setNewTerm(args.Term)
+		rf.persist()
+	}else{
+		rf.resetElectionIntervalTime()
 	}
+
+	//if args.LastIncludedIndex <= rf.CommitIndex {
+	//	rf.mu.Unlock()
+	//	log.Println("args.LastIncludedIndex <= rf.CommitIndex")
+	//	return
+	//}
+	//w := new(bytes.Buffer)
+	//e := labgob.NewEncoder(w)
+	//e.Encode(rf.CurrentTerm)
+	//e.Encode(rf.VotedFor)
+	//e.Encode(rf.log)
+	//data := w.Bytes()
+	//rf.persister.SaveStateAndSnapshot(data, args.Data)
+
+	log.Printf("raft  %d  state %d save InstallSnapshots from %d \n ", rf.me,rf.State,  args.LeaderId )
+	//InstallSnapshot rule 2,for lab3
+	//if args.Offset == 0 {
+	//
+	//}
+	rf.mu.Unlock()
+	go func() {
+		rf.mu.Lock()
+		applyMsg := &ApplyMsg{
+			SnapshotValid: true,
+			Snapshot: args.Data,
+			SnapshotTerm: args.LastIncludedTerm,
+			SnapshotIndex: args.LastIncludedIndex,
+		}
+		rf.mu.Unlock()
+		rf.applyCh <- *applyMsg
+	}()
+
 }

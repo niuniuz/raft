@@ -20,12 +20,9 @@ package raft
 import (
 	"6.824/labgob"
 	"bytes"
-	"fmt"
 	"log"
 	"math/rand"
 	"os"
-	"strings"
-
 	//	"bytes"
 	"sync"
 	"sync/atomic"
@@ -99,7 +96,9 @@ type Raft struct {
 	applyCh   chan ApplyMsg
 	applyCond *sync.Cond
 
-
+	snapshot []byte
+	lastIncludedTerm int
+	lastIncludedIndex int
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
@@ -142,6 +141,8 @@ func (rf *Raft) persist() {
 	e.Encode(rf.CurrentTerm)
 	e.Encode(rf.VotedFor)
 	e.Encode(rf.log)
+	e.Encode(rf.lastIncludedIndex)
+	e.Encode(rf.lastIncludedTerm)
 	data := w.Bytes()
 	rf.persister.SaveRaftState(data)
 }
@@ -163,13 +164,21 @@ func (rf *Raft) readPersist(data []byte) {
 	var currentTerm int
 	var votedFor int
 	var logs []Log
-
-	if d.Decode(&currentTerm) != nil || d.Decode(&votedFor) != nil || d.Decode(&logs) != nil {
+	var lastIncludedTerm int
+	var lastIncludedIndex int
+	if d.Decode(&currentTerm) != nil ||
+		d.Decode(&votedFor) != nil ||
+		d.Decode(&logs) != nil ||
+		d.Decode(&lastIncludedIndex) != nil ||
+		d.Decode(&lastIncludedTerm) != nil {
 		log.Fatal("failed to read persist\n")
 	} else {
 		rf.CurrentTerm = currentTerm
 		rf.VotedFor = votedFor
 		rf.log = logs
+		rf.lastIncludedTerm = lastIncludedTerm
+		rf.lastIncludedIndex = lastIncludedIndex
+		rf.LastApplied = lastIncludedIndex
 	}
 }
 
@@ -178,21 +187,7 @@ func (rf *Raft) readPersist(data []byte) {
 // A service wants to switch to snapshot.  Only do so if Raft hasn't
 // have more recent info since it communicate the snapshot on applyCh.
 //
-func (rf *Raft) CondInstallSnapshot(lastIncludedTerm int, lastIncludedIndex int, snapshot []byte) bool {
 
-	// Your code here (2D).
-
-	return true
-}
-
-// the service says it has created a snapshot that has
-// all info up to and including index. this means the
-// service no longer needs the log through (and including)
-// that index. Raft should now trim its log as much as possible.
-func (rf *Raft) Snapshot(index int, snapshot []byte) {
-	// Your code here (2D).
-
-}
 
 
 //
@@ -270,7 +265,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	}
 	logs := &Log{
 		Command:command,
-		Index: len(rf.log),
+		Index: max(rf.getLastLog().Index , rf.lastIncludedIndex)+ 1,// 有可能全部日志提交
 		Term: rf.CurrentTerm,
 	}
 	rf.addLog(logs)
@@ -326,7 +321,7 @@ func (rf *Raft) ticker() {
 		if rf.electionIntervalTime <= 0 {
 			rf.mu.Unlock()
 			rf.startElection()
-			log.Printf("raft %d electionEnd\n", rf.me)
+		log.Printf("raft %d electionEnd\n", rf.me)
 		}else  {
 			rf.mu.Unlock()
 		}
@@ -386,27 +381,29 @@ func (rf *Raft) apply() {
 
 func (rf *Raft) applier() {
 	rf.mu.Lock()
-	defer rf.mu.Unlock()
 
 	for !rf.killed() {
 		// all server rule C1
 		if rf.CommitIndex > rf.LastApplied &&
 			rf.getLastLog().Index > rf.LastApplied{
 			rf.LastApplied++
+			log.Printf("[%v]: logs %v LastApplied  %d rf.lastIncludedIndex %d\n", rf.me, rf.log, rf.LastApplied, rf.lastIncludedIndex)
 			applyMsg := ApplyMsg{
 				CommandValid:  true,
-				Command:       rf.log[rf.LastApplied].Command,
+				Command:       rf.getLogAtIndex(rf.LastApplied).Command,
 				CommandIndex:  rf.LastApplied,
 			}
+			//log.Printf("[%v]: apply Msg %v\n COMMIT %v ", rf.me, applyMsg, rf.commits())
 			rf.mu.Unlock()
-			log.Printf("[%v]: apply Msg %v\n COMMIT %v ", rf.me, applyMsg, rf.commits())
 			rf.applyCh <- applyMsg
 			rf.mu.Lock()
+			rf.persist()
 		} else {
 			rf.applyCond.Wait()
 			log.Printf("[%v]: rf.applyCond.Wait()", rf.me)
 		}
 	}
+	rf.mu.Unlock()
 }
 
 
@@ -436,22 +433,30 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.applyCh = applyCh
 	rf.applyCond = sync.NewCond(&rf.mu)
 
+
+	rf.snapshot = persister.ReadSnapshot()
+
+	//rf.snapshot = make([]byte, 0)
+	rf.lastIncludedIndex = 0
+	rf.lastIncludedTerm = 0
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
+	rf.CommitIndex = rf.LastApplied
 	setLog()
 	// start ticker goroutine to start elections
 
-	log.Printf("raft %d finishInitial\n", rf.me)
+	log.Printf("raft %d finishInitial logs %v lastConcludeIndex %d \n",
+		rf.me, rf.log, rf.lastIncludedIndex)
 	go rf.ticker()
 	go rf.applier()
 	return rf
 }
 
 
-func (rf *Raft) commits() string {
-	nums := []string{}
-	for i := 0; i <= rf.LastApplied; i++ {
-		nums = append(nums, fmt.Sprintf("%4d", rf.getLogAtIndex(i).Command))
-	}
-	return fmt.Sprint(strings.Join(nums, "|"))
-}
+//func (rf *Raft) commits() string {
+//	nums := []string{}
+//	for i := 0; i <= rf.LastApplied; i++ {
+//		nums = append(nums, fmt.Sprintf("%4d", rf.getLogAtIndex(i).Command))
+//	}
+//	return fmt.Sprint(strings.Join(nums, "|"))
+//}
